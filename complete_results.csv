@@ -1,0 +1,30 @@
+Model,Dataset,Parameters (M),GFLOPs,Training Time (s),Overall Accuracy,Average Accuracy,Kappa Coefficient,F1 Score,Precision,Recall,Latency (ms),Throughput (samples/sec),Timestamp,File
+hit,houston,2.11,0.04,30.17,0.9842,0.9851,0.9815,0.984,0.9846,0.9842,0.067,20828.89,20260313_162226,results_hit_houston.txt
+spectralformer,houston,3.02,1.4,30.56,0.5791,0.5565,0.5037,0.5525,0.6353,0.5791,0.0445,24322.89,20260313_140339,results_spectralformer_houston.txt
+spectralmamba,houston,1.43,0.02,27.85,0.9308,0.9341,0.919,0.9286,0.9345,0.9308,0.0857,16865.88,20260313_154821,results_spectralmamba_houston.txt
+ssftt,houston,3.44,0.52,30.04,0.996,0.996,0.9954,0.996,0.9961,0.996,0.0537,24055.74,20260313_145452,results_ssftt_houston.txt
+sslt,houston,2.15,0.0,24.85,0.9605,0.96,0.9537,0.9603,0.961,0.9605,0.0606,21067.7,20260313_134009,results_sslt_houston.txt
+sslt_no_global_attn (w/o Global Attention),houston,2.0,0.0,22.18,0.9625,0.9612,0.956,0.9624,0.9629,0.9625,0.0578,23630.67,20260313_235539,results_sslt_no_global_attn_houston.txt
+sslt_no_spectral_gating (w/o Spectral Gating),houston,2.08,0.0,19.22,0.9565,0.9566,0.9491,0.957,0.9599,0.9565,0.0601,25930.94,20260314_002520,results_sslt_no_spectral_gating_houston.txt
+swinhsi,houston,3.03,0.05,29.61,0.9901,0.9888,0.9884,0.9901,0.9907,0.9901,0.0858,18222.17,20260313_152117,results_swinhsi_houston.txt
+hit,indiana,5.28,0.14,99.53,0.9761,0.7977,0.9727,0.9719,0.9682,0.9761,0.0534,20522.04,20260313_191317,results_hit_indiana.txt
+spectralformer,indiana,3.06,6.5,353.2,0.4127,0.203,0.2897,0.2802,0.2638,0.4127,0.0698,14336.42,20260313_190931,results_spectralformer_indiana.txt
+spectralmamba,indiana,1.5,0.02,88.36,0.961,0.7799,0.9554,0.9566,0.9535,0.961,0.0657,17264.5,20260313_191118,results_spectralmamba_indiana.txt
+sslt,indiana,2.68,0.0,75.36,0.7546,0.6253,0.7171,0.7429,0.7498,0.7546,0.0508,21091.48,20260313_190307,results_sslt_indiana.txt
+swinhsi,indiana,3.05,0.05,84.98,0.9805,0.9319,0.9778,0.9799,0.9811,0.9805,0.0624,18004.89,20260313_191500,results_swinhsi_indiana.txt
+hit,pavia,3.13,0.08,351.97,0.9995,0.9994,0.9994,0.9995,0.9995,0.9995,0.0482,21041.49,20260313_162139,results_hit_pavia.txt
+spectralformer,pavia,3.03,3.03,625.18,0.9314,0.9348,0.9085,0.9304,0.9321,0.9314,0.0501,20098.17,20260313_140249,results_spectralformer_pavia.txt
+spectralmamba,pavia,1.45,0.02,329.78,0.9966,0.9953,0.9955,0.9966,0.9966,0.9966,0.0568,17713.78,20260313_154735,results_spectralmamba_pavia.txt
+ssftt,pavia,3.69,0.52,300.74,0.9991,0.9981,0.9988,0.9991,0.9991,0.9991,0.0407,24940.54,20260313_145404,results_ssftt_pavia.txt
+sslt,pavia,2.32,0.0,277.05,0.9852,0.9777,0.9803,0.9852,0.9852,0.9852,0.0474,21308.8,20260313_134518,results_sslt_pavia.txt
+sslt_no_global_attn (w/o Global Attention),pavia,2.17,0.0,231.3,0.9864,0.9783,0.982,0.9864,0.9865,0.9864,0.043,23503.35,20260314_000611,results_sslt_no_global_attn_pavia.txt
+sslt_no_spectral_gating (w/o Spectral Gating),pavia,2.24,0.0,204.91,0.9849,0.9767,0.98,0.9849,0.985,0.9849,0.0385,26236.94,20260314_001913,results_sslt_no_spectral_gating_pavia.txt
+swinhsi,pavia,3.04,0.05,310.49,0.9973,0.9959,0.9964,0.9973,0.9973,0.9973,0.0558,18307.36,20260313_152029,results_swinhsi_pavia.txt
+hit,salinas,5.36,0.15,445.25,0.9842,0.9941,0.9824,0.9842,0.9842,0.9842,0.0488,20829.98,20260313_163014,results_hit_salinas.txt
+spectralformer,salinas,3.06,6.62,1869.29,0.8026,0.802,0.7799,0.792,0.8243,0.8026,0.0676,14847.89,20260313_143621,results_spectralformer_salinas.txt
+spectralmamba,salinas,1.5,0.02,425.16,0.9873,0.9944,0.9858,0.9872,0.9873,0.9873,0.0578,17664.21,20260313_155554,results_spectralmamba_salinas.txt
+ssftt,salinas,4.25,0.54,389.69,0.9872,0.9955,0.9857,0.9872,0.9874,0.9872,0.0412,24476.54,20260313_150146,results_ssftt_salinas.txt
+sslt,salinas,2.69,0.0,348.24,0.9667,0.9848,0.9629,0.9666,0.9666,0.9667,0.0478,21118.8,20260313_133651,results_sslt_salinas.txt
+sslt_no_global_attn (w/o Global Attention),salinas,2.55,0.0,299.14,0.9641,0.984,0.96,0.964,0.964,0.9641,0.042,23964.68,20260314_000059,results_sslt_no_global_attn_salinas.txt
+sslt_no_spectral_gating (w/o Spectral Gating),salinas,2.62,0.0,252.74,0.9652,0.984,0.9612,0.9651,0.9651,0.9652,0.0383,26363.05,20260314_004036,results_sslt_no_spectral_gating_salinas.txt
+swinhsi,salinas,3.05,0.05,399.84,0.9895,0.9959,0.9883,0.9895,0.9895,0.9895,0.0556,18292.02,20260313_152822,results_swinhsi_salinas.txt
