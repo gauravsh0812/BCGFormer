@@ -58,18 +58,36 @@ def count_model_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad) / 1_000_000
 
 
+from thop import profile
+
 def calculate_gflops(model, dataset, device):
+    model.eval()
+
     sample = dataset[0]['x'].unsqueeze(0).to(device)
-    flops = FlopCountAnalysis(model, sample)
-    flops.unsupported_ops_settings(raise_on_error=False)
-    flops.uncalled_modules_settings(warn_on_error=False)
-    total_flops = flops.total()
-    if total_flops == 0:
-        return 0.0
-    gflops = total_flops / 1e9
+
+    macs, params = profile(model, inputs=(sample,), verbose=False)
+
+    # Convert MACs → FLOPs
+    flops = macs * 2
+
+    gflops = flops / 1e9
     if gflops < 0.001:
-        return round(total_flops / 1e6, 4)  # return MFLOPs if GFLOPs too small
+        return round(flops / 1e6, 4)  # MFLOPs
+
     return gflops
+
+# def calculate_gflops(model, dataset, device):
+#     sample = dataset[0]['x'].unsqueeze(0).to(device)
+#     flops = FlopCountAnalysis(model, sample)
+#     flops.unsupported_ops_settings(raise_on_error=False)
+#     flops.uncalled_modules_settings(warn_on_error=False)
+#     total_flops = flops.total()
+#     if total_flops == 0:
+#         return 0.0
+#     gflops = total_flops / 1e9
+#     if gflops < 0.001:
+#         return round(total_flops / 1e6, 4)  # return MFLOPs if GFLOPs too small
+#     return gflops
 
 
 def evaluate_model(model, test_dataset, test_indices, y, device):
