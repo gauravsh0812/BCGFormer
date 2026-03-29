@@ -1,9 +1,9 @@
 Model: sslt_d1
 Dataset: pavia
-Timestamp: 20260329_120006
+Timestamp: 20260329_123912
 Parameters: 0.13 M
-GFLOPs: 0.0000
-Avg Training Time: 41.19 seconds
+GFLOPs: 0.0065
+Avg Training Time: 41.34 seconds
 Protocol: 5 runs, spatial-safe split, train-stats normalisation
 
 === RESULTS (mean ± std over 5 runs) ===
@@ -13,5 +13,5 @@ Kappa: 0.9586 ± 0.0000
 F1: 0.9692 ± 0.0000
 Precision: 0.9699 ± 0.0000
 Recall: 0.9692 ± 0.0000
-Latency: 0.8686 ms
-Throughput: 1151.34 samples/sec
+Latency: 0.8597 ms
+Throughput: 1163.16 samples/sec

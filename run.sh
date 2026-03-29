@@ -2,11 +2,12 @@
 
 set -e
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=4
 
 SAVE_PATH="./results_avg"
-MODELS=("sslt_d1" "spectralmamba" "spectralformer" "swinhsi" "hit")
-DATASETS=("houston") # "pavia" "salinas")
+NUM_RUNS=5
+MODELS=("sslt_d1" "spectralmamba" "spectralformer" "swinhsi" "hit" "hybridsn")
+DATASETS=("houston" "pavia" "salinas" "indiana")
 
 mkdir -p "$SAVE_PATH"
 
@@ -16,7 +17,7 @@ for dataset in "${DATASETS[@]}"; do
         echo "========================================"
         echo "Running: model=$model  dataset=$dataset"
         echo "========================================"
-        python main.py --model "$model" --dataset "$dataset" --save_path "$SAVE_PATH" \
+        python main.py --model "$model" --dataset "$dataset" --save_path "$SAVE_PATH" --num_runs "$NUM_RUNS" \
             2>&1 | tee "${SAVE_PATH}/log_${model}_${dataset}.txt"
     done
 done
