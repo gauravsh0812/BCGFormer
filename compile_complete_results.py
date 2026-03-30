@@ -28,7 +28,7 @@ def parse_result_file(file_path):
         # Extract metrics
         oa_match = re.search(r'Overall Accuracy:\s*([\d.]+)', content)
         aa_match = re.search(r'Average Accuracy:\s*([\d.]+)', content)
-        kappa_match = re.search(r'Kappa Coefficient:\s*([\d.]+)', content)
+        kappa_match = re.search(r'Kappa:\s*([\d.]+)', content)
         f1_match = re.search(r'F1 Score:\s*([\d.]+)', content)
         precision_match = re.search(r'Precision:\s*([\d.]+)', content)
         recall_match = re.search(r'Recall:\s*([\d.]+)', content)
@@ -57,8 +57,6 @@ def parse_result_file(file_path):
             model_from_filename = 'ssftt'
         elif 'hybridsn' in filename.lower():
             model_from_filename = 'hybridsn'
-        elif '3dcnn' in filename.lower():
-            model_from_filename = '3dcnn'
         elif 'swinhsi' in filename.lower():
             model_from_filename = 'swinhsi'
         elif 'spectralmamba' in filename.lower():
@@ -74,7 +72,7 @@ def parse_result_file(file_path):
             'Training Time (s)': float(time_match.group(1)) if time_match else 0.0,
             'Overall Accuracy': float(oa_match.group(1)) if oa_match else 0.0,
             'Average Accuracy': float(aa_match.group(1)) if aa_match else 0.0,
-            'Kappa Coefficient': float(kappa_match.group(1)) if kappa_match else 0.0,
+            'Kappa': float(kappa_match.group(1)) if kappa_match else 0.0,
             'F1 Score': float(f1_match.group(1)) if f1_match else 0.0,
             'Precision': float(precision_match.group(1)) if precision_match else 0.0,
             'Recall': float(recall_match.group(1)) if recall_match else 0.0,
@@ -95,7 +93,7 @@ def parse_result_file(file_path):
             'Training Time (s)': 0.0,
             'Overall Accuracy': 0.0,
             'Average Accuracy': 0.0,
-            'Kappa Coefficient': 0.0,
+            'Kappa': 0.0,
             'F1 Score': 0.0,
             'Precision': 0.0,
             'Recall': 0.0,
@@ -110,11 +108,11 @@ def parse_result_file(file_path):
 def main():
     # Find ALL result files in results folder and current directory
     result_patterns = [
-        'results/*.txt',
-        'results/*/*.txt',
-        'ablation_results/*.txt',
-        'ablation_results/*/*.txt',
-        './*.txt'  # Files in current directory that look like results
+        'results_avg/*.txt',
+        # 'results/*/*.txt',
+        # 'ablation_results/*.txt',
+        # 'ablation_results/*/*.txt',
+        # './*.txt'  # Files in current directory that look like results
     ]
     
     all_files = []
@@ -128,7 +126,7 @@ def main():
         filename = os.path.basename(file_path).lower()
         if (filename.startswith('results_') or 
             'results' in filename or
-            any(model in filename for model in ['sslt', 'spectralformer', 'ssftt', 'hybridsn', '3dcnn', 'swinhsi', 'spectralmamba', 'hit'])):
+            any(model in filename for model in ['sslt', 'spectralformer', 'ssftt', 'hybridsn', 'swinhsi', 'spectralmamba', 'hit'])):
             filtered_files.append(file_path)
     
     # Remove duplicates
@@ -159,7 +157,7 @@ def main():
     if all_results:
         fieldnames = [
             'Model', 'Dataset', 'Parameters (M)', 'GFLOPs', 'Training Time (s)',
-            'Overall Accuracy', 'Average Accuracy', 'Kappa Coefficient',
+            'Overall Accuracy', 'Average Accuracy', 'Kappa',
             'F1 Score', 'Precision', 'Recall', 'Latency (ms)', 
             'Throughput (samples/sec)', 'Timestamp', 'File'
         ]
