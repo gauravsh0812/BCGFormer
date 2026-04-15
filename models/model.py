@@ -183,9 +183,10 @@ class SpectralSpatialLinearTransformerV2(nn.Module):
         # 8. Spectral token + spatial mean → addition → classify
         spec_out = tokens[:, 0]                     # B × D
         spat_out = tokens[:, 1:].mean(dim=1)        # B × D
-        logits   = self.head(spec_out + spat_out)
+        features = spec_out + spat_out              # B × D (for visualization)
+        logits   = self.head(features)
 
         if labels is not None:
             return {"loss": F.cross_entropy(logits, labels),
-                    "logits": logits}
-        return {"logits": logits}
+                    "logits": logits, "features": features}
+        return {"logits": logits, "features": features}
