@@ -1,0 +1,17 @@
+Model: sslt_d1
+Dataset: salinas
+Timestamp: 20260515_140117
+Parameters: 0.1989 M
+GFLOPs: 0.0100
+Avg Training Time: 156.92 seconds
+Protocol: 5 runs, spatial-safe split, train-stats normalisation
+
+=== RESULTS (mean ± std over 5 runs) ===
+Overall Accuracy: 0.9460 ± 0.0000
+Average Accuracy: 0.9794 ± 0.0000
+Kappa: 0.9396 ± 0.0000
+F1: 0.9459 ± 0.0000
+Precision: 0.9461 ± 0.0000
+Recall: 0.9460 ± 0.0000
+Latency: 0.7729 ms
+Throughput: 1293.81 samples/sec
