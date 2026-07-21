@@ -1,3 +1,17 @@
+"""
+main_v1.py — HSI Classification Benchmark
+==========================================
+Evaluation protocol:
+- Houston 2013 : official GRSS 2013 fixed train/test split (2832 / 12197)
+- Pavia U      : standard 200-train-per-class random split (5 runs)
+- Indiana      : standard 200-train-per-class random split (5 runs)
+- Salinas      : standard 200-train-per-class random split (5 runs)
+
+All splits: NO spatial patch overlap between train and test centers.
+Normalisation: train statistics only (no test leakage).
+Runs: 5 random seeds → report mean ± std.
+"""
+
 import numpy as np
 import torch
 import scipy.io
@@ -20,9 +34,9 @@ logging.disable(logging.CRITICAL)
 
 # ── Model imports ──────────────────────────────────────────────────────────────
 # from models.model import SpectralSpatialLinearTransformerV2
-from models.ablation_no_bcg import SpectralSpatialLinearTransformerV2_NoBCG as SpectralSpatialLinearTransformerV2
+# from models.ablation_no_bcg import SpectralSpatialLinearTransformerV2_NoBCG as SpectralSpatialLinearTransformerV2
 # from models.ablation_no_spectral_token import SpectralSpatialLinearTransformerV2_NoSpectralToken as SpectralSpatialLinearTransformerV2
-# from models.ablation_standard_attention import SpectralSpatialLinearTransformerV2_StandardAttention as SpectralSpatialLinearTransformerV2
+from models.ablation_standard_attention import SpectralSpatialLinearTransformerV2_StandardAttention as SpectralSpatialLinearTransformerV2
 from models.hybridsn      import HybridSN
 from models.swinhsi       import SwinHSI
 from models.hit           import HiT

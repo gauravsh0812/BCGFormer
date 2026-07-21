@@ -9,6 +9,11 @@ import logging
 import datetime
 import time
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
@@ -19,14 +24,11 @@ warnings.filterwarnings("ignore")
 logging.disable(logging.CRITICAL)
 
 # ── Model imports ──────────────────────────────────────────────────────────────
-# from models.model import SpectralSpatialLinearTransformerV2
 from models.ablation_no_bcg import SpectralSpatialLinearTransformerV2_NoBCG as SpectralSpatialLinearTransformerV2
-# from models.ablation_no_spectral_token import SpectralSpatialLinearTransformerV2_NoSpectralToken as SpectralSpatialLinearTransformerV2
-# from models.ablation_standard_attention import SpectralSpatialLinearTransformerV2_StandardAttention as SpectralSpatialLinearTransformerV2
-from models.hybridsn      import HybridSN
-from models.swinhsi       import SwinHSI
-from models.hit           import HiT
-from models.ssftt         import SSFTT
+from models.hybridsn       import HybridSN
+from models.swinhsi        import SwinHSI
+from models.hit            import HiT
+from models.ssftt          import SSFTT
 from models.spectralformer import SpectralFormer
 from models.spectralmamba  import SpectralMamba
 from evaluation import count_model_parameters, calculate_gflops
@@ -37,11 +39,10 @@ from evaluation import count_model_parameters, calculate_gflops
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _load_mat(file_path):
-    """Load a .mat file with fallback between scipy and h5py."""
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
     try:
-        mat = scipy.io.loadmat(file_path)
+        mat  = scipy.io.loadmat(file_path)
         keys = [k for k in mat.keys() if not k.startswith('__')]
         return mat, keys, 'scipy'
     except Exception:
@@ -57,17 +58,18 @@ def _get_array(obj, key, fmt):
 
 
 def load_dataset(image_file, gt_file):
-    """Return (H x W x C image, H x W ground_truth)."""
-    _POSSIBLE_IMG = ['ori_data', 'houston', 'Houston', 'Houston13', 'data', 'image',
-                     'HSI', 'paviaU', 'PaviaU', 'pavia', 'Pavia', 'salinas', 'Salinas',
-                     'salinas_corrected', 'Salinas_corrected', 'indian_pines',
-                     'Indian_pines', 'indiana_pines', 'Indiana_pines', 'WHU_Hi_HongHu',
+    _POSSIBLE_IMG = ['ori_data', 'houston', 'Houston', 'Houston13', 'data',
+                     'image', 'HSI', 'paviaU', 'PaviaU', 'pavia', 'Pavia',
+                     'salinas', 'Salinas', 'salinas_corrected',
+                     'Salinas_corrected', 'indian_pines', 'Indian_pines',
+                     'indiana_pines', 'Indiana_pines', 'WHU_Hi_HongHu',
                      'WHU_Hi_HanChuan', 'WHU_Hi_LongKou']
-    _POSSIBLE_GT  = ['map', 'houston_gt', 'Houston_gt', 'Houston13_7gt', 'gt',
-                     'ground_truth', 'label', 'paviaU_gt', 'PaviaU_gt', 'pavia_gt',
-                     'Pavia_gt', 'salinas_gt', 'Salinas_gt', 'indian_pines_gt',
-                     'Indian_pines_gt', 'indiana_pines_gt', 'Indiana_pines_gt',
-                     'WHU_Hi_HongHu_gt', 'WHU_Hi_HanChuan_gt', 'WHU_Hi_LongKou_gt']
+    _POSSIBLE_GT  = ['map', 'houston_gt', 'Houston_gt', 'Houston13_7gt',
+                     'gt', 'ground_truth', 'label', 'paviaU_gt', 'PaviaU_gt',
+                     'pavia_gt', 'Pavia_gt', 'salinas_gt', 'Salinas_gt',
+                     'indian_pines_gt', 'Indian_pines_gt', 'indiana_pines_gt',
+                     'Indiana_pines_gt', 'WHU_Hi_HongHu_gt', 'WHU_Hi_HanChuan_gt',
+                     'WHU_Hi_LongKou_gt']
 
     img_mat, img_keys, img_fmt = _load_mat(image_file)
     gt_mat,  gt_keys,  gt_fmt  = _load_mat(gt_file)
@@ -80,7 +82,6 @@ def load_dataset(image_file, gt_file):
     image = _get_array(img_mat, img_key, img_fmt)
     gt    = _get_array(gt_mat,  gt_key,  gt_fmt)
 
-    # Ensure H x W x C
     if img_fmt == 'h5py' and image.ndim == 3 and image.shape[0] < image.shape[2]:
         image = np.transpose(image, (1, 2, 0))
     if image.ndim == 2:
@@ -97,18 +98,6 @@ def load_dataset(image_file, gt_file):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_houston_official_split(gt_train_file, gt_test_file):
-    """
-    Houston 2013 GRSS Data Fusion Contest official split.
-    Requires two separate ground-truth files:
-      Houston13_7gt.mat        → training labels  (2832 labeled pixels)
-      Houston13_7gt_test.mat   → test labels      (12197 labeled pixels)
-    Both files cover the same 349×1905 spatial extent; unlabeled pixels = 0.
-    """
-    _, gt_train = load_dataset(None, gt_train_file) if False else (
-        None, _get_array(*_load_mat(gt_train_file)[:2],
-                         _load_mat(gt_train_file)[2]))
-
-    # Simpler: just load both gt files directly
     def load_gt(path):
         mat, keys, fmt = _load_mat(path)
         _GT = ['map', 'houston_gt', 'Houston_gt', 'Houston13_7gt',
@@ -138,21 +127,11 @@ def load_houston_official_split(gt_train_file, gt_test_file):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GENERIC SPATIAL-SAFE SPLIT  (Pavia / Indiana / Salinas)
+# GENERIC SPATIAL-SAFE SPLIT
 # ══════════════════════════════════════════════════════════════════════════════
 
 def spatial_safe_split(ground_truth, train_samples_per_class=200,
                        window_size=5, random_state=0):
-    """
-    Standard HSI benchmark protocol:
-    - Fixed N train samples per class (spatially separated within class).
-    - Remaining pixels → test set.
-    - Spatial exclusion: within-class only, distance > window_size//2.
-    - No cross-class global exclusion (destroys test set on dense datasets).
-    - No fallback that violates spatial constraint.
-
-    This matches the protocol used by HiT, SSFTT, SpectralFormer, MorphFormer.
-    """
     rng  = np.random.default_rng(random_state)
     half = window_size // 2
 
@@ -214,7 +193,6 @@ def spatial_safe_split(ground_truth, train_samples_per_class=200,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def extract_patches(image_data, coords, window_size=5):
-    """Extract H×W×C patches centred on (row, col) coordinates."""
     half   = window_size // 2
     padded = np.pad(image_data,
                     ((half, half), (half, half), (0, 0)),
@@ -222,12 +200,11 @@ def extract_patches(image_data, coords, window_size=5):
     patches = np.stack([
         padded[r:r + window_size, c:c + window_size, :]
         for r, c in coords
-    ])  # N × H × W × C
+    ])
     return patches
 
 
 def normalize(train_patches, test_patches):
-    """Min-max normalisation using train statistics only."""
     mn = train_patches.min()
     mx = train_patches.max()
     train_patches = (train_patches - mn) / (mx - mn + 1e-8)
@@ -241,12 +218,12 @@ def normalize(train_patches, test_patches):
 
 class HyperspectralDataset(Dataset):
     def __init__(self, patches, labels):
-        # patches: N × H × W × C  →  store as N × C × H × W
         self.patches = torch.tensor(
             patches.transpose(0, 3, 1, 2), dtype=torch.float32)
         self.labels  = torch.tensor(labels, dtype=torch.long)
 
-    def __len__(self):  return len(self.labels)
+    def __len__(self):
+        return len(self.labels)
 
     def __getitem__(self, idx):
         return {'x': self.patches[idx], 'labels': self.labels[idx]}
@@ -260,18 +237,11 @@ def data_collator(batch):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TRAINING  (pure PyTorch — no HuggingFace Trainer)
+# TRAINING
 # ══════════════════════════════════════════════════════════════════════════════
 
 def train_model(model, train_dataset, val_dataset, device,
                 epochs=50, batch_size=32, lr=3e-4, weight_decay=1e-2):
-    """
-    Training loop with:
-    - AdamW optimiser
-    - Cosine LR schedule with 10% linear warmup
-    - Best-model checkpoint by validation ACCURACY (not loss)
-    - Label smoothing 0.1 for regularisation
-    """
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True,  num_workers=0, pin_memory=True)
     val_loader   = DataLoader(val_dataset,   batch_size=64,
@@ -289,27 +259,26 @@ def train_model(model, train_dataset, val_dataset, device,
         progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
         return 0.5 * (1.0 + np.cos(np.pi * progress))
 
-    scheduler  = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-    criterion  = nn.CrossEntropyLoss(label_smoothing=0.1)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     best_acc   = -1.0
     best_state = None
 
     for epoch in range(epochs):
-        # ── Train ──────────────────────────────────────────────
         model.train()
         for batch in train_loader:
             x      = batch['x'].to(device)
             labels = batch['labels'].to(device)
             optimizer.zero_grad()
             out  = model(x, labels)
-            loss = out['loss'] if 'loss' in out else criterion(out['logits'], labels)
+            loss = (out['loss'] if 'loss' in out
+                    else criterion(out['logits'], labels))
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             scheduler.step()
 
-        # ── Validate ───────────────────────────────────────────
         model.eval()
         all_preds, all_true = [], []
         with torch.no_grad():
@@ -324,9 +293,9 @@ def train_model(model, train_dataset, val_dataset, device,
         acc = accuracy_score(all_true, all_preds)
         if acc > best_acc:
             best_acc   = acc
-            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            best_state = {k: v.cpu().clone()
+                          for k, v in model.state_dict().items()}
 
-    # Restore best checkpoint
     model.load_state_dict(best_state)
     return model, best_acc
 
@@ -340,29 +309,19 @@ def evaluate(model, test_dataset, device, batch_size=64):
                         shuffle=False, num_workers=0, pin_memory=True)
     model.eval()
     all_preds, all_true = [], []
-
-    # Latency measurement on first batch
     latency_ms = None
+
     with torch.no_grad():
         for i, batch in enumerate(loader):
             x      = batch['x'].to(device)
             labels = batch['labels']
             if i == 0:
-                # Warm-up (50 iterations to stabilize GPU)
-                for _ in range(50):
-                    _ = model(x)
-                    torch.cuda.synchronize()
-                
-                # Measure multiple times and take median
-                times = []
+                for _ in range(10):
+                    _ = model(x[:1])
+                t0 = time.perf_counter()
                 for _ in range(100):
-                    t0 = time.perf_counter()
-                    _ = model(x)
-                    torch.cuda.synchronize()
-                    times.append((time.perf_counter() - t0) * 1000)
-                
-                latency_ms = np.median(times)
-
+                    _ = model(x[:1])
+                latency_ms = (time.perf_counter() - t0) / 100 * 1000
 
             out   = model(x)
             preds = out['logits'].argmax(dim=-1).cpu().numpy()
@@ -388,6 +347,108 @@ def evaluate(model, test_dataset, device, batch_size=64):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# CLASSIFICATION MAP
+# ══════════════════════════════════════════════════════════════════════════════
+
+def generate_classification_map(model, image_data, ground_truth, device,
+                                 window_size=5, batch_size=256,
+                                 save_path='./results_avg',
+                                 model_name='model',
+                                 dataset_name='dataset',
+                                 run=0):
+    """
+    Predicts every labeled pixel in the full image and saves a
+    side-by-side ground truth / prediction false-colour map.
+    Unlabeled pixels (gt == 0) are shown in black.
+    """
+    H, W, C = image_data.shape
+    half    = window_size // 2
+    padded  = np.pad(image_data,
+                     ((half, half), (half, half), (0, 0)),
+                     mode='reflect')
+
+    all_coords = np.argwhere(ground_truth != 0)
+
+    mn = image_data.min()
+    mx = image_data.max()
+
+    patches = np.stack([
+        (padded[r:r + window_size, c:c + window_size, :] - mn) / (mx - mn + 1e-8)
+        for r, c in all_coords
+    ]).transpose(0, 3, 1, 2).astype(np.float32)
+
+    model.eval()
+    all_preds = []
+    with torch.no_grad():
+        for i in range(0, len(patches), batch_size):
+            x    = torch.tensor(patches[i:i + batch_size]).to(device)
+            out  = model(x)
+            pred = out['logits'].argmax(dim=-1).cpu().numpy()
+            all_preds.extend(pred)
+    all_preds = np.array(all_preds)
+
+    # build maps — background = 0, classes = 1..K
+    pred_map = np.zeros((H, W), dtype=np.int32)
+    gt_map   = np.zeros((H, W), dtype=np.int32)
+    for idx, (r, c) in enumerate(all_coords):
+        pred_map[r, c] = all_preds[idx] + 1
+        gt_map[r, c]   = ground_truth[r, c]
+
+    num_classes = int(max(pred_map.max(), gt_map.max()))
+
+    # distinct colour palette — index 0 always black (background)
+    base_colors = [
+        '#000000',                          # background
+        '#e6194b', '#3cb44b', '#ffe119',    # classes 1-3
+        '#4363d8', '#f58231', '#911eb4',    # classes 4-6
+        '#42d4f4', '#f032e6', '#bfef45',    # classes 7-9
+        '#fabed4', '#469990', '#dcbeff',    # classes 10-12
+        '#9A6324', '#fffac8', '#800000',    # classes 13-15
+        '#aaffc3', '#808000', '#ffd8b1',    # classes 16-18
+        '#000075', '#a9a9a9',               # classes 19-20
+    ]
+    while len(base_colors) <= num_classes:
+        np.random.seed(len(base_colors))
+        base_colors.append('#%06x' % np.random.randint(0, 0xFFFFFF))
+
+    cmap   = mcolors.ListedColormap(base_colors[:num_classes + 1])
+    bounds = np.arange(-0.5, num_classes + 1.5, 1)
+    norm   = mcolors.BoundaryNorm(bounds, cmap.N)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), dpi=150)
+
+    im0 = axes[0].imshow(gt_map,   cmap=cmap, norm=norm, interpolation='nearest')
+    axes[0].set_title('Ground Truth', fontsize=13, fontweight='bold', pad=8)
+    axes[0].axis('off')
+
+    im1 = axes[1].imshow(pred_map, cmap=cmap, norm=norm, interpolation='nearest')
+    axes[1].set_title('BCG-Former Prediction', fontsize=13,
+                      fontweight='bold', pad=8)
+    axes[1].axis('off')
+
+    # shared colourbar
+    cbar = fig.colorbar(im1, ax=axes, orientation='vertical',
+                        fraction=0.02, pad=0.02,
+                        ticks=np.arange(0, num_classes + 1))
+    cbar.ax.set_yticklabels(
+        ['Background'] + [f'Class {i}' for i in range(1, num_classes + 1)],
+        fontsize=8)
+
+    plt.suptitle(
+        f'{dataset_name.upper()} — Classification Map (Run {run + 1})',
+        fontsize=14, fontweight='bold', y=1.01)
+
+    os.makedirs(save_path, exist_ok=True)
+    out_path = os.path.join(
+        save_path,
+        f'classmap_{model_name}_{dataset_name}_run{run + 1}.png')
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"[classmap] Saved → {out_path}")
+    return out_path
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MODEL BUILDER
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -405,7 +466,8 @@ def build_model(model_name, num_channels, num_classes, window_size,
     elif model_name == 'spectralmamba':
         return SpectralMamba(num_bands=num_channels, num_classes=num_classes,
                              window_size=window_size, embed_dim=embed_dim,
-                             d_state=16, depth=depth, piece_size=2, dropout=0.1)
+                             d_state=16, depth=depth, piece_size=2,
+                             dropout=0.1)
     elif model_name == 'hybridsn':
         return HybridSN(num_bands=num_channels, num_classes=num_classes,
                         window_size=window_size)
@@ -420,7 +482,8 @@ def build_model(model_name, num_channels, num_classes, window_size,
     elif model_name == 'swinhsi':
         return SwinHSI(num_bands=num_channels, num_classes=num_classes,
                        window_size=window_size, embed_dim=embed_dim,
-                       num_heads=num_heads, depth=depth, swin_window=patch_size)
+                       num_heads=num_heads, depth=depth,
+                       swin_window=patch_size)
     raise ValueError(f"Unknown model: {model_name}")
 
 
@@ -432,19 +495,26 @@ def save_results(model_name, data_name, agg, model_params, gflops,
                  avg_train_time, save_path):
     os.makedirs(save_path, exist_ok=True)
     ts   = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = os.path.join(save_path, f"results_{model_name}_{data_name}.txt")
+    path = os.path.join(save_path,
+                        f"results_{model_name}_{data_name}.txt")
     with open(path, 'w') as f:
         f.write(f"Model: {model_name}\n")
         f.write(f"Dataset: {data_name}\n")
         f.write(f"Timestamp: {ts}\n")
-        f.write(f"Parameters: {model_params:.2f} M\n")
+        f.write(f"Parameters: {model_params:.4f} M\n")
         f.write(f"GFLOPs: {gflops:.4f}\n")
         f.write(f"Avg Training Time: {avg_train_time:.2f} seconds\n")
-        f.write(f"Protocol: 5 runs, spatial-safe split, train-stats normalisation\n\n")
+        f.write(f"Protocol: 5 runs, spatial-safe split, "
+                f"train-stats normalisation\n\n")
         f.write("=== RESULTS (mean ± std over 5 runs) ===\n")
-        for key, label in [('oa','Overall Accuracy'), ('aa','Average Accuracy'),
-                            ('kappa','Kappa'), ('f1','F1'), ('precision','Precision'),
-                            ('recall','Recall')]:
+        for key, label in [
+            ('oa',        'Overall Accuracy'),
+            ('aa',        'Average Accuracy'),
+            ('kappa',     'Kappa'),
+            ('f1',        'F1'),
+            ('precision', 'Precision'),
+            ('recall',    'Recall'),
+        ]:
             m, s = agg[key]
             f.write(f"{label}: {m:.4f} ± {s:.4f}\n")
         f.write(f"Latency: {agg['latency'][0]:.4f} ms\n")
@@ -462,29 +532,28 @@ def main():
                         choices=['sslt_d1', 'hit', 'spectralmamba', 'hybridsn',
                                  '3dcnn', 'spectralformer', 'ssftt', 'swinhsi'])
     parser.add_argument('--dataset', type=str, default='houston',
-                        choices=['pavia', 'houston', 'houston18', 'salinas', 'indiana', 'honghu', 'hanchuan', 'longkou'])
-    parser.add_argument('--train_samples', type=int, default=200)
-    parser.add_argument('--epochs',        type=int, default=20)
-    parser.add_argument('--batch_size',    type=int, default=32)
+                        choices=['pavia', 'houston', 'houston18', 'salinas',
+                                 'indiana', 'honghu', 'hanchuan', 'longkou'])
+    parser.add_argument('--train_samples', type=int,  default=200)
+    parser.add_argument('--epochs',        type=int,  default=20)
+    parser.add_argument('--batch_size',    type=int,  default=32)
     parser.add_argument('--lr',            type=float, default=3e-4)
-    parser.add_argument('--num_runs',      type=int, default=1)
-    parser.add_argument('--save_path',     type=str, default='./results_avg')
-    # Houston official split files (optional — falls back to random split)
+    parser.add_argument('--num_runs',      type=int,  default=1)
+    parser.add_argument('--save_path',     type=str,  default='./results_avg')
     parser.add_argument('--houston_train_gt', type=str,
-                        default='./dataset/Houston13_7gt.mat',
-                        help='Houston 2013 official TRAIN ground truth')
+                        default='./dataset/Houston13_7gt.mat')
     parser.add_argument('--houston_test_gt',  type=str,
-                        default='./dataset/Houston13_7gt_test.mat',
-                        help='Houston 2013 official TEST ground truth')
+                        default='./dataset/Houston13_7gt_test.mat')
+    parser.add_argument('--save_maps', action='store_true',
+                        help='Save classification maps (last run only)')
     args = parser.parse_args()
 
-    # ── Dataset paths ──────────────────────────────────────────────────────────
     dataset_files = {
-        'pavia':     ("./dataset/PaviaU.mat",       "./dataset/PaviaU_gt.mat"),
-        'houston':   ("./dataset/Houston13.mat",     args.houston_train_gt),
-        'houston18': ("./dataset/Houston18.mat",     "./dataset/Houston18_gt.mat"),
-        'salinas':   ("./dataset/Salinas.mat",       "./dataset/Salinas_gt.mat"),
-        'indiana':   ("./dataset/Indian_pines.mat",  "./dataset/Indian_pines_gt.mat"),
+        'pavia':     ("./dataset/PaviaU.mat",      "./dataset/PaviaU_gt.mat"),
+        'houston':   ("./dataset/Houston13.mat",    args.houston_train_gt),
+        'houston18': ("./dataset/Houston18.mat",    "./dataset/Houston18_gt.mat"),
+        'salinas':   ("./dataset/Salinas.mat",      "./dataset/Salinas_gt.mat"),
+        'indiana':   ("./dataset/Indian_pines.mat", "./dataset/Indian_pines_gt.mat"),
         'honghu':    ("./dataset/WHU/WHU-Hi-HongHu/WHU_Hi_HongHu.mat", "./dataset/WHU/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat"),
         'hanchuan':  ("./dataset/WHU/WHU-Hi-HanChuan/WHU_Hi_HanChuan.mat", "./dataset/WHU/WHU-Hi-HanChuan/WHU_Hi_HanChuan_gt.mat"),
         'longkou':   ("./dataset/WHU/WHU-Hi-LongKou/WHU_Hi_LongKou.mat", "./dataset/WHU/WHU-Hi-LongKou/WHU_Hi_LongKou_gt.mat"),
@@ -500,9 +569,8 @@ def main():
     image_data, ground_truth = load_dataset(image_file, gt_file)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device} | Image: {image_data.shape} | "
-          f"GT unique: {np.unique(ground_truth[ground_truth!=0])}")
+          f"GT unique: {np.unique(ground_truth[ground_truth != 0])}")
 
-    # ── Determine split strategy ───────────────────────────────────────────────
     use_official_houston = (
         args.dataset == 'houston' and
         os.path.exists(args.houston_test_gt)
@@ -511,12 +579,13 @@ def main():
         print("[Houston] Using official GRSS 2013 fixed split.")
     else:
         if args.dataset == 'houston':
-            print(f"[Houston] Official test GT not found at {args.houston_test_gt}. "
+            print(f"[Houston] Official test GT not found at "
+                  f"{args.houston_test_gt}. "
                   f"Falling back to spatial-safe random split.")
-        print(f"[Split] spatial-safe, {args.train_samples} train/class, {args.num_runs} runs")
+        print(f"[Split] spatial-safe, "
+              f"{args.train_samples} train/class, {args.num_runs} runs")
 
-    # ── Build a temporary model for param/FLOP counting ───────────────────────
-    # Use first split to get num_channels / num_classes
+    # initial split for param / FLOP counting
     if use_official_houston:
         tr_c, tr_y, te_c, te_y, le = load_houston_official_split(
             gt_file, args.houston_test_gt)
@@ -527,21 +596,24 @@ def main():
     num_classes  = len(np.unique(tr_y))
     num_channels = image_data.shape[-1]
 
-    tmp_model   = build_model(args.model, num_channels, num_classes,
-                               window_size, embed_dim, num_heads, depth, patch_size
-                               ).to(device)
+    tmp_model = build_model(
+        args.model, num_channels, num_classes,
+        window_size, embed_dim, num_heads, depth, patch_size
+    ).to(device)
     model_params = count_model_parameters(tmp_model)
     gflops = 0.0
     try:
-        tr_p = extract_patches(image_data, tr_c[:64], window_size)
-        tr_p, _ = normalize(tr_p, tr_p)
-        tmp_ds  = HyperspectralDataset(tr_p, tr_y[:64])
-        gflops  = calculate_gflops(tmp_model, tmp_ds, device)
+        tr_p      = extract_patches(image_data, tr_c[:64], window_size)
+        tr_p, _   = normalize(tr_p, tr_p)
+        tmp_ds    = HyperspectralDataset(tr_p, tr_y[:64])
+        gflops    = calculate_gflops(tmp_model, tmp_ds, device)
     except Exception as e:
         print(f"[GFLOPs] Failed: {e}")
     del tmp_model
 
-    print(f"\nModel: {args.model} | Params: {model_params:.2f}M | GFLOPs: {gflops:.4f}")
+    print(f"\nModel : {args.model} | "
+          f"Params: {model_params:.4f} M | "
+          f"GFLOPs: {gflops:.4f}")
     print(f"Channels: {num_channels} | Classes: {num_classes}\n")
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -550,18 +622,18 @@ def main():
     all_results   = []
     total_tr_time = 0.0
     NUM_RUNS      = args.num_runs
- #if use_official_houston else args.num_runs
 
     for run in range(NUM_RUNS):
-        print(f"── Run {run+1}/{NUM_RUNS} ─────────────────────────────")
+        print(f"── Run {run + 1}/{NUM_RUNS} "
+              f"{'─' * 40}")
 
         if use_official_houston:
-            # Official split — same every run, seed only affects model init
-            train_coords, train_y, test_coords, test_y, _ = (
-                tr_c, tr_y, te_c, te_y, le)
+            train_coords, train_y = tr_c, tr_y
+            test_coords,  test_y  = te_c, te_y
         else:
             train_coords, train_y, test_coords, test_y, _ = spatial_safe_split(
-                ground_truth, args.train_samples, window_size, random_state=run)
+                ground_truth, args.train_samples,
+                window_size, random_state=run)
 
         train_patches = extract_patches(image_data, train_coords, window_size)
         test_patches  = extract_patches(image_data, test_coords,  window_size)
@@ -571,25 +643,42 @@ def main():
         test_ds  = HyperspectralDataset(test_patches,  test_y)
 
         torch.manual_seed(run)
-        model = build_model(args.model, num_channels, num_classes,
-                            window_size, embed_dim, num_heads, depth, patch_size
-                            ).to(device)
+        model = build_model(
+            args.model, num_channels, num_classes,
+            window_size, embed_dim, num_heads, depth, patch_size
+        ).to(device)
 
         t0 = time.time()
         model, best_val_acc = train_model(
             model, train_ds, test_ds, device,
             epochs=args.epochs, batch_size=args.batch_size,
             lr=args.lr, weight_decay=1e-2)
-        tr_time = time.time() - t0
+        tr_time        = time.time() - t0
         total_tr_time += tr_time
 
         results = evaluate(model, test_ds, device)
         all_results.append(results)
 
-        print(f"   Best val acc: {best_val_acc:.4f} | "
+        print(f"   Best val acc : {best_val_acc:.4f} | "
               f"Test OA: {results['oa']:.4f} | "
               f"Kappa: {results['kappa']:.4f} | "
+              f"Latency: {results['latency']:.2f} ms | "
               f"Time: {tr_time:.1f}s")
+
+        # classification map — last run only, opt-in via --save_maps
+        if args.save_maps and run == NUM_RUNS - 1:
+            generate_classification_map(
+                model=model,
+                image_data=image_data,
+                ground_truth=ground_truth,
+                device=device,
+                window_size=window_size,
+                batch_size=256,
+                save_path=args.save_path,
+                model_name=args.model,
+                dataset_name=args.dataset,
+                run=run,
+            )
 
     # ══════════════════════════════════════════════════════════════════════════
     # AGGREGATION & REPORTING
@@ -601,15 +690,17 @@ def main():
         vals   = np.array([r[m] for r in all_results])
         agg[m] = (float(vals.mean()), float(vals.std()))
 
-    print(f"\n{'═'*50}")
-    print(f"Model: {args.model} | Dataset: {args.dataset} | Runs: {NUM_RUNS}")
+    print(f"\n{'═' * 50}")
+    print(f"Model: {args.model} | "
+          f"Dataset: {args.dataset} | "
+          f"Runs: {NUM_RUNS}")
     print(f"{'Metric':<14} {'Mean':>8} {'Std':>8}")
     print("─" * 32)
     for m in ['oa', 'aa', 'kappa', 'f1', 'precision', 'recall']:
         print(f"{m.upper():<14} {agg[m][0]:>8.4f} {agg[m][1]:>8.4f}")
     print(f"{'LATENCY(ms)':<14} {agg['latency'][0]:>8.4f}")
     print(f"{'THROUGHPUT':<14} {agg['throughput'][0]:>8.1f} samples/sec")
-    print(f"{'═'*50}\n")
+    print(f"{'═' * 50}\n")
 
     save_results(args.model, args.dataset, agg, model_params, gflops,
                  total_tr_time / NUM_RUNS, args.save_path)
