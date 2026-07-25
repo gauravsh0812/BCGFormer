@@ -3,3 +3,4 @@ results_avg/*
 dataset/
 __pycache__/
 *.csv
+visualizations/
