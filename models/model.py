@@ -22,7 +22,7 @@ class BandRoPE(nn.Module):
         return x * cos + torch.cat([-t2, t1], dim=-1) * sin
 
 
-class SpectralSpatialLinearTransformerV2(nn.Module):
+class BCGFormer(nn.Module):
     """
     CNN-Transformer HSI classifier.
 

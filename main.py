@@ -9,6 +9,11 @@ import logging
 import datetime
 import time
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
@@ -18,17 +23,7 @@ from sklearn.metrics import (accuracy_score, cohen_kappa_score,
 warnings.filterwarnings("ignore")
 logging.disable(logging.CRITICAL)
 
-# ── Model imports ──────────────────────────────────────────────────────────────
-# from models.model import SpectralSpatialLinearTransformerV2
-from models.ablation_no_bcg import SpectralSpatialLinearTransformerV2_NoBCG as SpectralSpatialLinearTransformerV2
-# from models.ablation_no_spectral_token import SpectralSpatialLinearTransformerV2_NoSpectralToken as SpectralSpatialLinearTransformerV2
-# from models.ablation_standard_attention import SpectralSpatialLinearTransformerV2_StandardAttention as SpectralSpatialLinearTransformerV2
-from models.hybridsn      import HybridSN
-from models.swinhsi       import SwinHSI
-from models.hit           import HiT
-from models.ssftt         import SSFTT
-from models.spectralformer import SpectralFormer
-from models.spectralmamba  import SpectralMamba
+from models.model import BCGFormer
 from evaluation import count_model_parameters, calculate_gflops
 
 
@@ -388,40 +383,92 @@ def evaluate(model, test_dataset, device, batch_size=64):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# CLASSIFICATION MAP
+# ══════════════════════════════════════════════════════════════════════════════
+
+def generate_classification_map(model, image_data, ground_truth, device,
+                                 window_size=5, batch_size=256,
+                                 save_path='./visualizations',
+                                 dataset_name='dataset', run=0):
+    H, W, _ = image_data.shape
+    half     = window_size // 2
+    padded   = np.pad(image_data, ((half, half), (half, half), (0, 0)), mode='reflect')
+
+    all_coords = np.argwhere(ground_truth != 0)
+    mn, mx     = image_data.min(), image_data.max()
+
+    patches = np.stack([
+        (padded[r:r + window_size, c:c + window_size, :] - mn) / (mx - mn + 1e-8)
+        for r, c in all_coords
+    ]).transpose(0, 3, 1, 2).astype(np.float32)
+
+    model.eval()
+    all_preds = []
+    with torch.no_grad():
+        for i in range(0, len(patches), batch_size):
+            x    = torch.tensor(patches[i:i + batch_size]).to(device)
+            out  = model(x)
+            pred = out['logits'].argmax(dim=-1).cpu().numpy()
+            all_preds.extend(pred)
+    all_preds = np.array(all_preds)
+
+    pred_map = np.zeros((H, W), dtype=np.int32)
+    gt_map   = np.zeros((H, W), dtype=np.int32)
+    for idx, (r, c) in enumerate(all_coords):
+        pred_map[r, c] = all_preds[idx] + 1
+        gt_map[r, c]   = ground_truth[r, c]
+
+    num_classes = int(max(pred_map.max(), gt_map.max()))
+
+    base_colors = [
+        '#000000',
+        '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
+        '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff',
+        '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1',
+        '#000075', '#a9a9a9',
+    ]
+    while len(base_colors) <= num_classes:
+        np.random.seed(len(base_colors))
+        base_colors.append('#%06x' % np.random.randint(0, 0xFFFFFF))
+
+    cmap   = mcolors.ListedColormap(base_colors[:num_classes + 1])
+    bounds = np.arange(-0.5, num_classes + 1.5, 1)
+    norm   = mcolors.BoundaryNorm(bounds, cmap.N)
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), dpi=150)
+    axes[0].imshow(gt_map,   cmap=cmap, norm=norm, interpolation='nearest')
+    axes[0].set_title('Ground Truth', fontsize=13, fontweight='bold', pad=8)
+    axes[0].axis('off')
+    im1 = axes[1].imshow(pred_map, cmap=cmap, norm=norm, interpolation='nearest')
+    axes[1].set_title('BCGFormer Prediction', fontsize=13, fontweight='bold', pad=8)
+    axes[1].axis('off')
+
+    cbar = fig.colorbar(im1, ax=axes, orientation='vertical',
+                        fraction=0.02, pad=0.02,
+                        ticks=np.arange(0, num_classes + 1))
+    cbar.ax.set_yticklabels(
+        ['Background'] + [f'Class {i}' for i in range(1, num_classes + 1)],
+        fontsize=8)
+
+    plt.suptitle(f'{dataset_name.upper()} — Classification Map (Run {run + 1})',
+                 fontsize=14, fontweight='bold', y=1.01)
+
+    os.makedirs(save_path, exist_ok=True)
+    out_path = os.path.join(save_path, f'classmap_bcgformer_{dataset_name}_run{run + 1}.png')
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"[classmap] Saved → {out_path}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MODEL BUILDER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_model(model_name, num_channels, num_classes, window_size,
-                embed_dim, num_heads, depth, patch_size):
-    if model_name == 'sslt_d1':
-        return SpectralSpatialLinearTransformerV2(
-            image_size=window_size, num_channels=num_channels,
-            num_classes=num_classes, embed_dim=64, depth=2,
-            num_heads=4, mlp_ratio=2.0)
-    elif model_name == 'hit':
-        return HiT(num_bands=num_channels, num_classes=num_classes,
-                   window_size=window_size, embed_dim=embed_dim,
-                   num_heads=num_heads, depth=depth)
-    elif model_name == 'spectralmamba':
-        return SpectralMamba(num_bands=num_channels, num_classes=num_classes,
-                             window_size=window_size, embed_dim=embed_dim,
-                             d_state=16, depth=depth, piece_size=2, dropout=0.1)
-    elif model_name == 'hybridsn':
-        return HybridSN(num_bands=num_channels, num_classes=num_classes,
-                        window_size=window_size)
-    elif model_name == 'spectralformer':
-        return SpectralFormer(num_bands=num_channels, num_classes=num_classes,
-                              window_size=window_size, embed_dim=embed_dim,
-                              num_heads=num_heads, depth=depth)
-    elif model_name == 'ssftt':
-        return SSFTT(num_bands=num_channels, num_classes=num_classes,
-                     window_size=window_size, embed_dim=embed_dim,
-                     num_heads=num_heads, depth=depth)
-    elif model_name == 'swinhsi':
-        return SwinHSI(num_bands=num_channels, num_classes=num_classes,
-                       window_size=window_size, embed_dim=embed_dim,
-                       num_heads=num_heads, depth=depth, swin_window=patch_size)
-    raise ValueError(f"Unknown model: {model_name}")
+def build_model(num_channels, num_classes, window_size):
+    return BCGFormer(
+        image_size=window_size, num_channels=num_channels,
+        num_classes=num_classes, embed_dim=64, depth=2,
+        num_heads=4, mlp_ratio=2.0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -458,11 +505,8 @@ def save_results(model_name, data_name, agg, model_params, gflops,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='sslt_d1',
-                        choices=['sslt_d1', 'hit', 'spectralmamba', 'hybridsn',
-                                 '3dcnn', 'spectralformer', 'ssftt', 'swinhsi'])
     parser.add_argument('--dataset', type=str, default='houston',
-                        choices=['pavia', 'houston', 'houston18', 'salinas', 'indiana', 'honghu', 'hanchuan', 'longkou'])
+                        choices=['pavia', 'houston', 'houston18', 'houston18_20class', 'salinas', 'indiana', 'honghu', 'hanchuan', 'longkou'])
     parser.add_argument('--train_samples', type=int, default=200)
     parser.add_argument('--epochs',        type=int, default=20)
     parser.add_argument('--batch_size',    type=int, default=32)
@@ -476,6 +520,8 @@ def main():
     parser.add_argument('--houston_test_gt',  type=str,
                         default='./dataset/Houston13_7gt_test.mat',
                         help='Houston 2013 official TEST ground truth')
+    parser.add_argument('--save_maps', action='store_true',
+                        help='Save classification maps after the last run')
     args = parser.parse_args()
 
     # ── Dataset paths ──────────────────────────────────────────────────────────
@@ -483,6 +529,7 @@ def main():
         'pavia':     ("./dataset/PaviaU.mat",       "./dataset/PaviaU_gt.mat"),
         'houston':   ("./dataset/Houston13.mat",     args.houston_train_gt),
         'houston18': ("./dataset/Houston18.mat",     "./dataset/Houston18_gt.mat"),
+        'houston18_20class': ("/data/gauravs/Houston18/Houston_data.mat", "/data/gauravs/Houston18/Houston_gt.mat"),
         'salinas':   ("./dataset/Salinas.mat",       "./dataset/Salinas_gt.mat"),
         'indiana':   ("./dataset/Indian_pines.mat",  "./dataset/Indian_pines_gt.mat"),
         'honghu':    ("./dataset/WHU/WHU-Hi-HongHu/WHU_Hi_HongHu.mat", "./dataset/WHU/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat"),
@@ -491,10 +538,6 @@ def main():
     }
 
     window_size = 5
-    patch_size  = 4
-    embed_dim   = 64
-    num_heads   = 4
-    depth       = 3
 
     image_file, gt_file = dataset_files[args.dataset]
     image_data, ground_truth = load_dataset(image_file, gt_file)
@@ -527,9 +570,7 @@ def main():
     num_classes  = len(np.unique(tr_y))
     num_channels = image_data.shape[-1]
 
-    tmp_model   = build_model(args.model, num_channels, num_classes,
-                               window_size, embed_dim, num_heads, depth, patch_size
-                               ).to(device)
+    tmp_model   = build_model(num_channels, num_classes, window_size).to(device)
     model_params = count_model_parameters(tmp_model)
     gflops = 0.0
     try:
@@ -541,7 +582,7 @@ def main():
         print(f"[GFLOPs] Failed: {e}")
     del tmp_model
 
-    print(f"\nModel: {args.model} | Params: {model_params:.2f}M | GFLOPs: {gflops:.4f}")
+    print(f"\nModel: BCGFormer | Params: {model_params:.2f}M | GFLOPs: {gflops:.4f}")
     print(f"Channels: {num_channels} | Classes: {num_classes}\n")
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -571,9 +612,7 @@ def main():
         test_ds  = HyperspectralDataset(test_patches,  test_y)
 
         torch.manual_seed(run)
-        model = build_model(args.model, num_channels, num_classes,
-                            window_size, embed_dim, num_heads, depth, patch_size
-                            ).to(device)
+        model = build_model(num_channels, num_classes, window_size).to(device)
 
         t0 = time.time()
         model, best_val_acc = train_model(
@@ -591,6 +630,14 @@ def main():
               f"Kappa: {results['kappa']:.4f} | "
               f"Time: {tr_time:.1f}s")
 
+        if args.save_maps and run == NUM_RUNS - 1:
+            generate_classification_map(
+                model=model, image_data=image_data,
+                ground_truth=ground_truth, device=device,
+                window_size=window_size, batch_size=256,
+                save_path=args.save_path,
+                dataset_name=args.dataset, run=run)
+
     # ══════════════════════════════════════════════════════════════════════════
     # AGGREGATION & REPORTING
     # ══════════════════════════════════════════════════════════════════════════
@@ -602,7 +649,7 @@ def main():
         agg[m] = (float(vals.mean()), float(vals.std()))
 
     print(f"\n{'═'*50}")
-    print(f"Model: {args.model} | Dataset: {args.dataset} | Runs: {NUM_RUNS}")
+    print(f"Model: BCGFormer | Dataset: {args.dataset} | Runs: {NUM_RUNS}")
     print(f"{'Metric':<14} {'Mean':>8} {'Std':>8}")
     print("─" * 32)
     for m in ['oa', 'aa', 'kappa', 'f1', 'precision', 'recall']:
@@ -611,7 +658,7 @@ def main():
     print(f"{'THROUGHPUT':<14} {agg['throughput'][0]:>8.1f} samples/sec")
     print(f"{'═'*50}\n")
 
-    save_results(args.model, args.dataset, agg, model_params, gflops,
+    save_results('sslt', args.dataset, agg, model_params, gflops,
                  total_tr_time / NUM_RUNS, args.save_path)
 
 
